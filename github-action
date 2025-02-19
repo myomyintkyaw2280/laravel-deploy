@@ -1,0 +1,142 @@
+GitHub Actions is typically used for CI/CD workflows on cloud servers like AWS, but for **shared hosting (cPanel, GreenGeeks, etc.)**, direct deployment with GitHub Actions is limited. However, you can still automate deployment using **FTP, SSH, or cPanel’s Git feature**.
+
+---
+
+## **🚀 Option 1: Using FTP Deployment (GitHub Actions)**
+This is the easiest method, especially if your shared hosting supports **FTP/SFTP access**.
+
+### **1️⃣ Create an FTP Account on Your Hosting**
+1. Log in to **cPanel**.
+2. Go to **FTP Accounts**.
+3. Create a new FTP account (if not already available).
+4. Note down the **FTP Host**, **Username**, **Password**, and **FTP Port**.
+
+---
+
+### **2️⃣ Add FTP Credentials to GitHub Secrets**
+1. Open your **GitHub repository**.
+2. Go to **Settings → Secrets and variables → Actions → New repository secret**.
+3. Add the following secrets:
+   - `FTP_HOST` → your hosting FTP server (e.g., `ftp.yourdomain.com`)
+   - `FTP_USERNAME` → your FTP username
+   - `FTP_PASSWORD` → your FTP password
+   - `FTP_PORT` → your FTP port (default is `21`)
+   - `FTP_PATH` → `/public_html/your_project_folder/`
+
+---
+
+### **3️⃣ Create GitHub Action for FTP Deployment**
+In your GitHub repository, create **`.github/workflows/deploy.yml`** and add:
+```yaml
+name: Deploy to Shared Hosting (FTP)
+
+on:
+  push:
+    branches:
+      - main  # Change to your deployment branch
+
+jobs:
+  deploy:
+    name: Upload via FTP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to FTP Server
+        uses: SamKirkland/FTP-Deploy-Action@4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: "./"  # Root of repo
+          server-dir: ${{ secrets.FTP_PATH }}  # Path on server
+          exclude: |
+            **/.git*
+            **/.github*
+            **/node_modules/*
+            **/vendor/*
+            **/.env*
+```
+### **4️⃣ Push to `main` Branch**
+Every time you push to `main`, the action will **automatically upload files to your shared hosting**.
+
+```sh
+git add .
+git commit -m "Deploy update"
+git push origin main
+```
+---
+## **🚀 Option 2: Deploy via SSH (If Supported)**
+If your shared hosting allows **SSH access**, you can use **GitHub Actions + SSH**.
+
+### **1️⃣ Enable SSH on Your cPanel Hosting**
+- In **cPanel**, go to **SSH Access** and enable it.
+- Generate an **SSH Key** and download the private key.
+- Note the **SSH username, host, and port**.
+
+### **2️⃣ Add SSH Key to GitHub Secrets**
+Go to **GitHub → Settings → Secrets** and add:
+- `SSH_HOST` → `yourdomain.com`
+- `SSH_USERNAME` → `your_cpanel_username`
+- `SSH_PRIVATE_KEY` → Paste your private key
+
+### **3️⃣ Create GitHub Action for SSH Deployment**
+Create **`.github/workflows/deploy-ssh.yml`**:
+```yaml
+name: Deploy via SSH
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/your_cpanel_username/public_html/your_project
+            git pull origin main
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan cache:clear
+```
+### **4️⃣ Push Changes**
+```sh
+git add .
+git commit -m "Deploy via SSH"
+git push origin main
+```
+This will pull the latest code and run Laravel commands **on your shared hosting**.
+
+---
+
+## **🚀 Option 3: Use cPanel Git Version Control (Manual Deployment)**
+1. **Go to cPanel → Git Version Control**.
+2. Click **Create Repository**.
+3. Use `SSH` or `HTTPS` to **connect your GitHub repo**.
+4. After every update, run `git pull origin main` via cPanel **Terminal**.
+
+---
+
+## **🎯 Which Method to Use?**
+| **Method** | **Best For** |
+|------------|-------------|
+| **FTP (GitHub Actions)** | If your shared hosting does NOT support SSH |
+| **SSH (GitHub Actions)** | If SSH access is available (recommended for Laravel) |
+| **cPanel Git** | If you prefer a manual approach with cPanel UI |
+
+---
