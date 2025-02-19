@@ -1,0 +1,101 @@
+---
+
+## **🛠 Steps to Set Up GitHub Actions for SSH Deployment**
+### **1️⃣ Enable SSH Access on Your Hosting**
+1. Log in to **cPanel**.
+2. Go to **SSH Access** (or Terminal) and enable SSH.
+3. Find your **SSH username, host, and port**.
+4. Generate an **SSH Key** if needed.
+
+   If your hosting does not provide an SSH key, you can generate one locally:
+   ```sh
+   ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
+   ```
+   Copy the **public key** (`~/.ssh/id_rsa.pub`) and add it to your cPanel **SSH Keys**.
+
+---
+
+### **2️⃣ Add SSH Credentials to GitHub Secrets**
+1. Open your **GitHub repository**.
+2. Go to **Settings → Secrets and variables → Actions → New repository secret**.
+3. Add the following secrets:
+   - `SSH_HOST` → your hosting domain or IP (e.g., `yourdomain.com`)
+   - `SSH_USERNAME` → your cPanel SSH username
+   - `SSH_PORT` → your SSH port (default is `22`)
+   - `SSH_PRIVATE_KEY` → Copy and paste your private key (`id_rsa` from your local system)
+
+---
+
+### **3️⃣ Create GitHub Actions Workflow**
+Create a **GitHub Actions workflow** file at `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy Laravel to Shared Hosting via SSH
+
+on:
+  push:
+    branches:
+      - main  # Change to your deployment branch if needed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/${{ secrets.SSH_USERNAME }}/public_html/your_project_folder
+            git pull origin main
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:cache
+            php artisan view:cache
+            php artisan storage:link
+```
+
+---
+
+### **4️⃣ Push Changes to Trigger Deployment**
+Commit and push your code to the **main** branch:
+```sh
+git add .
+git commit -m "Automated deployment via SSH"
+git push origin main
+```
+GitHub Actions will now automatically **connect via SSH**, pull the latest changes, and run necessary Laravel commands.
+
+---
+
+## **🔥 Extra Features**
+- **Schedule automatic deployments**:
+  ```yaml
+  on:
+    schedule:
+      - cron: '0 3 * * *' # Runs every day at 3 AM UTC
+  ```
+- **Run tests before deployment**:
+  ```yaml
+  - name: Run PHPUnit Tests
+    run: php artisan test
+  ```
+- **Notify Slack/Telegram on failure**:
+  ```yaml
+  - name: Notify Failure
+    if: failure()
+    run: curl -X POST -H 'Content-type: application/json' --data '{"text":"Deployment Failed!"}' https://hooks.slack.com/services/your_webhook_url
+  ```
+
+---
+
+## **🚀 Now your Laravel project deploys automatically via SSH!**  
